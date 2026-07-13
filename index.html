@@ -1,0 +1,532 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Today — Task Manager</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/amazon-cognito-identity-js@6/dist/amazon-cognito-identity.min.js"></script>
+<style>
+  :root{
+    --bg:#1B1E24; --surface:#242830; --surface-2:#2C313B; --border:#363C47;
+    --text:#E8EAED; --muted:#8B93A3; --accent:#F5A623; --err:#e05c5c;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0; min-height:100vh; background:var(--bg); color:var(--text);
+    font-family:'Inter',sans-serif; display:flex; justify-content:center; padding:60px 20px;
+  }
+  .card{ width:100%; max-width:480px; }
+  .header{ display:flex; align-items:center; justify-content:space-between; margin-bottom:32px; }
+  .header h1{ font-family:'Fraunces',serif; font-weight:600; font-size:2.1rem; margin:0; letter-spacing:-0.01em; }
+  .date{ font-family:'JetBrains Mono',monospace; color:var(--muted); font-size:0.8rem; margin-top:4px; display:block; }
+  .ring-wrap{ position:relative; width:64px; height:64px; flex-shrink:0; }
+  .ring-wrap svg{ transform:rotate(-90deg); }
+  .ring-bg{ fill:none; stroke:var(--surface-2); stroke-width:5; }
+  .ring-fg{ fill:none; stroke:var(--accent); stroke-width:5; stroke-linecap:round; transition:stroke-dashoffset .5s ease; }
+  .ring-label{ position:absolute; inset:0; display:flex; align-items:center; justify-content:center; font-family:'JetBrains Mono',monospace; font-size:0.72rem; color:var(--muted); }
+  form{ display:flex; gap:10px; margin-bottom:16px; }
+  #taskForm{ flex-wrap:wrap; }
+  #taskForm input[type="text"]{ flex:1 1 200px; }
+  input[type="date"]{
+    background:var(--surface); border:1px solid var(--border); border-radius:10px;
+    padding:13px 12px; color:var(--muted); font-family:'JetBrains Mono',monospace;
+    font-size:0.82rem; outline:none; transition:border-color .15s ease; color-scheme:dark;
+  }
+  input[type="date"]:focus{ border-color:var(--accent); }
+  input[type="text"], input[type="email"], input[type="password"]{
+    flex:1; background:var(--surface); border:1px solid var(--border); border-radius:10px;
+    padding:13px 16px; color:var(--text); font-family:'Inter',sans-serif; font-size:0.95rem;
+    outline:none; transition:border-color .15s ease;
+  }
+  input::placeholder{ color:var(--muted); }
+  input:focus{ border-color:var(--accent); }
+  button{
+    background:var(--accent); color:#1B1E24; border:none; border-radius:10px;
+    padding:0 20px; font-family:'Inter',sans-serif; font-weight:600; font-size:0.9rem;
+    cursor:pointer; transition:filter .15s ease;
+  }
+  button:hover{ filter:brightness(1.08); }
+  button:focus-visible, input:focus-visible{ outline:2px solid var(--accent); outline-offset:2px; }
+  ul{ list-style:none; margin:0; padding:0; }
+  li{ display:flex; align-items:center; gap:12px; padding:14px 4px; border-bottom:1px solid var(--border); }
+  .check{
+    width:22px; height:22px; border-radius:50%; border:2px solid var(--border); flex-shrink:0;
+    cursor:pointer; position:relative; appearance:none; -webkit-appearance:none;
+    transition:border-color .15s ease, background .15s ease;
+  }
+  .check:checked{ background:var(--accent); border-color:var(--accent); }
+  .check:checked::after{
+    content:""; position:absolute; left:6px; top:2px; width:5px; height:10px;
+    border:solid #1B1E24; border-width:0 2px 2px 0; transform:rotate(45deg);
+  }
+  .task-text{ flex:1; font-size:0.97rem; color:var(--text); transition:color .15s ease; }
+  .task-text.completed{ color:var(--muted); text-decoration:line-through; text-decoration-color:var(--border); }
+  .del{
+    background:none; border:none; color:var(--muted); font-size:1.1rem; cursor:pointer;
+    opacity:0; transition:opacity .15s ease, color .15s ease; padding:4px; line-height:1;
+  }
+  li:hover .del{ opacity:1; }
+  .del:hover{ color:var(--err); }
+  .empty{ color:var(--muted); font-size:0.9rem; padding:24px 4px; text-align:center; border:1px dashed var(--border); border-radius:10px; }
+  .task-form-row{ display:flex; gap:10px; margin-bottom:16px; }
+  .task-form-row input[type="text"]{ flex:1; }
+  input[type="date"]{
+    background:var(--surface); border:1px solid var(--border); border-radius:10px;
+    padding:13px 12px; color:var(--text); font-family:'JetBrains Mono',monospace; font-size:0.82rem;
+    outline:none; color-scheme:dark;
+  }
+  input[type="date"]:focus{ border-color:var(--accent); }
+  .task-main{ display:flex; flex-direction:column; flex:1; gap:2px; }
+  .due{
+    font-family:'JetBrains Mono',monospace; font-size:0.72rem; color:var(--text);
+    background:var(--surface-2); white-space:nowrap; padding:3px 8px; border-radius:20px;
+  }
+  .due.overdue{ color:var(--err); background:transparent; border:1px solid var(--err); }
+  .file-btn{
+    display:flex; align-items:center; justify-content:center;
+    width:44px; background:var(--surface); border:1px solid var(--border); border-radius:10px;
+    cursor:pointer; font-size:1.1rem; user-select:none;
+  }
+  .file-btn:hover{ border-color:var(--accent); }
+  .file-name{ font-size:0.78rem; color:var(--muted); margin:-8px 0 16px 2px; font-family:'JetBrains Mono',monospace; }
+  .file-link{
+    font-family:'JetBrains Mono',monospace; font-size:0.72rem; color:var(--accent);
+    text-decoration:none; cursor:pointer; background:none; border:none; padding:0;
+  }
+  .file-link:hover{ text-decoration:underline; }
+  select#taskRepeat{
+    background:var(--surface); border:1px solid var(--border); border-radius:10px;
+    padding:0 10px; color:var(--muted); font-family:'Inter',sans-serif; font-size:0.8rem;
+  }
+  select#taskRepeat:focus{ border-color:var(--accent); outline:none; }
+  .repeat-icon{ font-size:0.85rem; color:var(--muted); }
+  .list-toolbar{ display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; }
+  .clear-btn{
+    background:none; border:none; color:var(--muted); font-size:0.78rem;
+    cursor:pointer; padding:4px 2px; text-decoration:underline; text-underline-offset:2px;
+  }
+  .clear-btn:hover{ color:var(--err); }
+  .focus-btn{
+    background:none; border:1px solid var(--border); color:var(--muted);
+    font-size:0.78rem; cursor:pointer; padding:5px 12px; border-radius:20px;
+    font-family:'Inter',sans-serif;
+  }
+  .focus-btn.active{ background:var(--accent); border-color:var(--accent); color:#1B1E24; font-weight:600; }
+  .focus-done{
+    text-align:center; color:var(--muted); font-family:'Fraunces',serif; font-size:1.1rem;
+    padding:40px 10px; font-style:italic;
+  }
+
+  /* auth screen */
+  .auth-tabs{ display:flex; gap:8px; margin-bottom:20px; }
+  .auth-tab{
+    flex:1; background:var(--surface); color:var(--muted); border:1px solid var(--border);
+    border-radius:10px; padding:10px; font-family:'Inter',sans-serif; font-weight:600;
+    font-size:0.85rem; cursor:pointer;
+  }
+  .auth-tab.active{ background:var(--surface-2); color:var(--text); border-color:var(--accent); }
+  .auth-form{ display:flex; flex-direction:column; gap:12px; }
+  .auth-form button{ padding:13px; }
+  .msg{ font-size:0.85rem; padding:2px 2px 10px; min-height:1em; }
+  .msg.error{ color:var(--err); }
+  .msg.ok{ color:var(--accent); }
+  .hidden{ display:none !important; }
+  .signout{
+    background:none; border:1px solid var(--border); color:var(--muted);
+    padding:6px 12px; font-size:0.78rem; border-radius:8px;
+  }
+  .signout:hover{ filter:none; border-color:var(--err); color:var(--err); }
+  .topline{ display:flex; justify-content:space-between; align-items:center; margin-bottom:4px; }
+</style>
+</head>
+<body>
+
+<!-- AUTH SCREEN -->
+<div class="card" id="authScreen">
+  <div class="header"><div><h1>Today</h1><span class="date" id="dateLabelAuth"></span></div></div>
+
+  <div class="auth-tabs">
+    <button type="button" class="auth-tab active" id="tabSignIn">Sign in</button>
+    <button type="button" class="auth-tab" id="tabSignUp">Sign up</button>
+  </div>
+
+  <!-- Sign in form -->
+  <form class="auth-form" id="signInForm">
+    <input type="email" id="siEmail" placeholder="Email" required autocomplete="email">
+    <input type="password" id="siPassword" placeholder="Password" required autocomplete="current-password">
+    <button type="submit">Sign in</button>
+  </form>
+
+  <!-- Sign up form -->
+  <form class="auth-form hidden" id="signUpForm">
+    <input type="text" id="suName" placeholder="Name" required autocomplete="name">
+    <input type="email" id="suEmail" placeholder="Email" required autocomplete="email">
+    <input type="password" id="suPassword" placeholder="Password (min 8 characters)" required autocomplete="new-password">
+    <button type="submit">Create account</button>
+  </form>
+
+  <!-- Confirmation code form -->
+  <form class="auth-form hidden" id="confirmForm">
+    <p class="msg ok" style="padding:0;">Check your email for a confirmation code.</p>
+    <input type="text" id="confirmCode" placeholder="Confirmation code" required>
+    <button type="submit">Confirm account</button>
+  </form>
+
+  <div class="msg" id="authMsg"></div>
+</div>
+
+<!-- APP SCREEN -->
+<div class="card hidden" id="appScreen">
+  <div class="topline">
+    <div class="header" style="margin-bottom:0;">
+      <div>
+        <h1>Today</h1>
+        <span class="date" id="dateLabel"></span>
+      </div>
+      <div class="ring-wrap">
+        <svg width="64" height="64" viewBox="0 0 64 64">
+          <circle class="ring-bg" cx="32" cy="32" r="27"/>
+          <circle class="ring-fg" id="ringFg" cx="32" cy="32" r="27" stroke-dasharray="169.6" stroke-dashoffset="169.6"/>
+        </svg>
+        <div class="ring-label" id="ringLabel">0/0</div>
+      </div>
+    </div>
+  </div>
+  <div style="display:flex; justify-content:flex-end; margin-bottom:16px;">
+    <button type="button" class="signout" id="signOutBtn">Sign out</button>
+  </div>
+
+  <form id="taskForm">
+    <input type="text" id="taskInput" placeholder="What's next?" required autocomplete="off">
+    <input type="date" id="taskDate">
+    <select id="taskRepeat" title="Repeat">
+      <option value="none">No repeat</option>
+      <option value="daily">Daily</option>
+      <option value="weekly">Weekly</option>
+    </select>
+    <label for="taskFile" class="file-btn" title="Attach a file">📎</label>
+    <input type="file" id="taskFile" style="display:none;">
+    <button type="submit">Add</button>
+  </form>
+  <div id="fileName" class="file-name"></div>
+
+  <div class="list-toolbar">
+    <button type="button" class="focus-btn" id="focusModeBtn">🎯 Focus mode</button>
+    <button type="button" class="clear-btn" id="clearCompletedBtn">Clear completed</button>
+  </div>
+
+  <ul id="taskList"></ul>
+</div>
+
+<script>
+  // ---- Cognito config ----
+  const poolData = {
+    UserPoolId: "us-east-1_xHhQ7Lbwe",
+    ClientId: "3l1nka6pns69ade2actlbmp1k7"
+  };
+  const userPool = new AmazonCognitoIdentity.CognitoUserPool(poolData);
+  const { CognitoUser, AuthenticationDetails, CognitoUserAttribute } = AmazonCognitoIdentity;
+
+  const API_URL = "PASTE_YOUR_INVOKE_URL_HERE/tasks";
+  const BASE_URL = API_URL.replace(/\/tasks$/, "");
+  let idToken = null;
+  let pendingEmail = null; // used during sign-up confirmation
+
+  const el = id => document.getElementById(id);
+  const dateStr = new Date().toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' });
+  el("dateLabelAuth").textContent = dateStr;
+  el("dateLabel").textContent = dateStr;
+
+  function showAuthMsg(text, type) {
+    const m = el("authMsg");
+    m.textContent = text;
+    m.className = "msg " + (type || "");
+  }
+
+  // ---- Tab switching ----
+  el("tabSignIn").addEventListener("click", () => {
+    el("tabSignIn").classList.add("active");
+    el("tabSignUp").classList.remove("active");
+    el("signInForm").classList.remove("hidden");
+    el("signUpForm").classList.add("hidden");
+    el("confirmForm").classList.add("hidden");
+    showAuthMsg("");
+  });
+  el("tabSignUp").addEventListener("click", () => {
+    el("tabSignUp").classList.add("active");
+    el("tabSignIn").classList.remove("active");
+    el("signUpForm").classList.remove("hidden");
+    el("signInForm").classList.add("hidden");
+    el("confirmForm").classList.add("hidden");
+    showAuthMsg("");
+  });
+
+  // ---- Sign up ----
+  el("signUpForm").addEventListener("submit", (e) => {
+    e.preventDefault();
+    const name = el("suName").value;
+    const email = el("suEmail").value;
+    const password = el("suPassword").value;
+
+    const attributeList = [
+      new CognitoUserAttribute({ Name: "email", Value: email }),
+      new CognitoUserAttribute({ Name: "name", Value: name })
+    ];
+
+    userPool.signUp(email, password, attributeList, null, (err, result) => {
+      if (err) {
+        showAuthMsg(err.message || "Could not sign up.", "error");
+        return;
+      }
+      pendingEmail = email;
+      el("signUpForm").classList.add("hidden");
+      el("confirmForm").classList.remove("hidden");
+      showAuthMsg("");
+    });
+  });
+
+  // ---- Confirm sign up ----
+  el("confirmForm").addEventListener("submit", (e) => {
+    e.preventDefault();
+    const code = el("confirmCode").value;
+    const cognitoUser = new CognitoUser({ Username: pendingEmail, Pool: userPool });
+
+    cognitoUser.confirmRegistration(code, true, (err, result) => {
+      if (err) {
+        showAuthMsg(err.message || "Could not confirm account.", "error");
+        return;
+      }
+      showAuthMsg("Account confirmed — you can sign in now.", "ok");
+      el("confirmForm").classList.add("hidden");
+      el("tabSignIn").click();
+    });
+  });
+
+  // ---- Sign in ----
+  el("signInForm").addEventListener("submit", (e) => {
+    e.preventDefault();
+    const email = el("siEmail").value;
+    const password = el("siPassword").value;
+
+    const authDetails = new AuthenticationDetails({ Username: email, Password: password });
+    const cognitoUser = new CognitoUser({ Username: email, Pool: userPool });
+
+    cognitoUser.authenticateUser(authDetails, {
+      onSuccess: (session) => {
+        idToken = session.getIdToken().getJwtToken();
+        localStorage.setItem("idToken", idToken);
+        showApp();
+      },
+      onFailure: (err) => {
+        showAuthMsg(err.message || "Could not sign in.", "error");
+      }
+    });
+  });
+
+  // ---- Sign out ----
+  el("signOutBtn").addEventListener("click", () => {
+    const cognitoUser = userPool.getCurrentUser();
+    if (cognitoUser) cognitoUser.signOut();
+    localStorage.removeItem("idToken");
+    idToken = null;
+    el("appScreen").classList.add("hidden");
+    el("authScreen").classList.remove("hidden");
+  });
+
+  // ---- On page load: check for existing session ----
+  function checkSession() {
+    const cognitoUser = userPool.getCurrentUser();
+    if (!cognitoUser) { return; }
+    cognitoUser.getSession((err, session) => {
+      if (err || !session.isValid()) { return; }
+      idToken = session.getIdToken().getJwtToken();
+      showApp();
+    });
+  }
+
+  function showApp() {
+    el("authScreen").classList.add("hidden");
+    el("appScreen").classList.remove("hidden");
+    loadTasks();
+  }
+
+  // ---- Task manager logic (same as before, now sends the auth token) ----
+  const RADIUS = 27;
+  const CIRCUMFERENCE = 2 * Math.PI * RADIUS;
+
+  function updateRing(completed, total) {
+    const pct = total === 0 ? 0 : completed / total;
+    const offset = CIRCUMFERENCE * (1 - pct);
+    el("ringFg").style.strokeDasharray = CIRCUMFERENCE;
+    el("ringFg").style.strokeDashoffset = offset;
+    el("ringLabel").textContent = `${completed}/${total}`;
+  }
+
+  function escapeHtml(str) {
+    const div = document.createElement("div");
+    div.textContent = str;
+    return div.innerHTML;
+  }
+
+  function formatDate(isoDate) {
+    const d = new Date(isoDate + "T00:00:00");
+    return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+  }
+
+  function authHeaders() {
+    return { "Content-Type": "application/json", "Authorization": idToken };
+  }
+
+  el("taskFile").addEventListener("change", () => {
+    const file = el("taskFile").files[0];
+    el("fileName").textContent = file ? `Attached: ${file.name}` : "";
+  });
+
+  async function viewFile(key) {
+    const res = await fetch(`${BASE_URL}/file-url?key=${encodeURIComponent(key)}`, {
+      headers: { "Authorization": idToken }
+    });
+    const data = await res.json();
+    window.open(data.viewUrl, "_blank");
+  }
+  window.viewFile = viewFile;
+
+  let currentTasks = [];
+  let focusMode = false;
+
+  async function loadTasks() {
+    const res = await fetch(API_URL, { headers: authHeaders() });
+    const tasks = await res.json();
+    currentTasks = Array.isArray(tasks) ? tasks : [];
+    renderTasks();
+  }
+
+  function renderTasks() {
+    const list = el("taskList");
+    list.innerHTML = "";
+
+    if (currentTasks.length === 0) {
+      list.innerHTML = `<li style="border:none;padding:0;"><div class="empty" style="width:100%;">Nothing here yet. Add your first task above.</div></li>`;
+      updateRing(0, 0);
+      return;
+    }
+
+    const todayStr = new Date().toISOString().slice(0, 10);
+    let visibleTasks = currentTasks;
+
+    if (focusMode) {
+      visibleTasks = currentTasks.filter(t =>
+        !t.completed && t.dueDate && t.dueDate <= todayStr
+      );
+    }
+
+    if (focusMode && visibleTasks.length === 0) {
+      list.innerHTML = `<li style="border:none;padding:0;"><div class="focus-done">Nothing left for today 🌙</div></li>`;
+      const completed = currentTasks.filter(t => t.completed).length;
+      updateRing(completed, currentTasks.length);
+      return;
+    }
+
+    visibleTasks = [...visibleTasks].sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
+
+    visibleTasks.forEach(task => {
+      const li = document.createElement("li");
+      const isOverdue = task.dueDate && task.dueDate < todayStr && !task.completed;
+      const dueBadge = task.dueDate
+        ? `<span class="due ${isOverdue ? "overdue" : ""}">${isOverdue ? "overdue " : ""}${formatDate(task.dueDate)}</span>`
+        : "";
+      const fileLink = task.fileKey
+        ? `<button class="file-link" onclick="viewFile('${task.fileKey}')">📎 View file</button>`
+        : "";
+      const repeatIcon = task.repeat && task.repeat !== "none"
+        ? `<span class="repeat-icon" title="Repeats ${task.repeat}">🔁</span>`
+        : "";
+      li.innerHTML = `
+        <input type="checkbox" class="check" ${task.completed ? "checked" : ""} onchange="toggleTask('${task.taskId}', this.checked)">
+        <span class="task-text ${task.completed ? "completed" : ""}">${escapeHtml(task.title)}</span>
+        ${repeatIcon}
+        ${dueBadge}
+        ${fileLink}
+        <button class="del" onclick="deleteTask('${task.taskId}')" aria-label="Delete task">✕</button>
+      `;
+      list.appendChild(li);
+    });
+
+    const completed = currentTasks.filter(t => t.completed).length;
+    updateRing(completed, currentTasks.length);
+  }
+
+  el("focusModeBtn").addEventListener("click", () => {
+    focusMode = !focusMode;
+    el("focusModeBtn").classList.toggle("active", focusMode);
+    renderTasks();
+  });
+
+  window.toggleTask = async function(taskId, completed) {
+    await fetch(API_URL, { method: "PUT", headers: authHeaders(), body: JSON.stringify({ taskId, completed }) });
+    loadTasks();
+  };
+
+  window.deleteTask = async function(taskId) {
+    await fetch(API_URL, { method: "DELETE", headers: authHeaders(), body: JSON.stringify({ taskId }) });
+    loadTasks();
+  };
+
+  el("clearCompletedBtn").addEventListener("click", async () => {
+    const completedTasks = currentTasks.filter(t => t.completed);
+    if (completedTasks.length === 0) return;
+    await Promise.all(completedTasks.map(t =>
+      fetch(API_URL, { method: "DELETE", headers: authHeaders(), body: JSON.stringify({ taskId: t.taskId }) })
+    ));
+    loadTasks();
+  });
+
+  el("taskForm").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const input = el("taskInput");
+    const dateInput = el("taskDate");
+    const fileInput = el("taskFile");
+    const repeatInput = el("taskRepeat");
+    const file = fileInput.files[0];
+    let fileKey = null;
+
+    if (file) {
+      // 1. Ask our Lambda for a presigned upload URL
+      const urlRes = await fetch(`${BASE_URL}/upload-url`, {
+        method: "POST",
+        headers: authHeaders(),
+        body: JSON.stringify({ fileName: file.name, fileType: file.type })
+      });
+      const { uploadUrl, key } = await urlRes.json();
+
+      // 2. Upload the file directly to S3 using that URL
+      await fetch(uploadUrl, {
+        method: "PUT",
+        headers: { "Content-Type": file.type },
+        body: file
+      });
+
+      fileKey = key;
+    }
+
+    // 3. Create the task, referencing the uploaded file (if any)
+    await fetch(API_URL, {
+      method: "POST",
+      headers: authHeaders(),
+      body: JSON.stringify({ title: input.value, dueDate: dateInput.value || null, fileKey, repeat: repeatInput.value })
+    });
+
+    input.value = "";
+    dateInput.value = "";
+    fileInput.value = "";
+    repeatInput.value = "none";
+    el("fileName").textContent = "";
+    loadTasks();
+  });
+
+  checkSession();
+</script>
+</body>
+</html>
