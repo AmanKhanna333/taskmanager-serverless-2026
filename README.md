@@ -40,32 +40,3 @@ https://aman-taskmanager-2026.s3-website.ap-south-1.amazonaws.com
 7. A scheduled EventBridge rule invokes a Lambda function once a day, which scans for tasks due that day and publishes a summary to an SNS topic, which emails the user.
 
 ## Repo contents
-
-```
-index.html          → the full frontend (HTML/CSS/JS, no build step required)
-lambda/
-  createTask.mjs     → POST /tasks
-  getTasks.mjs       → GET /tasks
-  updateTask.mjs     → PUT /tasks
-  deleteTask.mjs     → DELETE /tasks
-  getUploadUrl.mjs   → POST /upload-url  (presigned S3 upload URL)
-  getFileUrl.mjs     → GET /file-url     (presigned S3 view URL)
-  checkDueTasks.mjs  → invoked on a schedule by EventBridge; not exposed via API Gateway
-```
-
-## What I learned building this
-
-- Configuring S3 static website hosting, bucket policies, and public vs. private access
-- CloudFront as a CDN in front of S3 for HTTPS and global caching
-- IAM users, roles, and least-privilege permissions
-- Designing a serverless REST API with Lambda, API Gateway, and DynamoDB
-- Authentication and authorization with Cognito, including securing an API with a JWT authorizer
-- Enforcing per-user data ownership at the database layer, not just the application layer
-- The presigned URL pattern for secure, direct-to-S3 file uploads
-- Scheduled/event-driven automation with EventBridge and notifications with SNS
-- Real-world debugging: CORS, cross-region resource mismatches, IAM propagation delays, and browser caching quirks
-
-## Notes
-
-- This project uses AWS's Free Tier / Free Plan credits and stays well within free usage limits for personal use.
-- The Cognito User Pool ID and App Client ID in `index.html` are not secret values by design (this is how AWS's own client-side SDKs are meant to be used) — no AWS credentials are ever exposed in the frontend code.
