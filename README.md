@@ -3,7 +3,7 @@
 A full-stack, serverless task manager built on AWS — started as a beginner learning project and evolved feature by feature into a genuinely complete daily-use application.
 
 ## Live site
-https://aman-taskmanager-2026.s3-website.ap-south-1.amazonaws.com
+http://aman-taskmanager-2026.s3-website.ap-south-1.amazonaws.com/
 
 ## Features
 
